@@ -19,13 +19,17 @@ import com.github.shyiko.mysql.binlog.event.EventData;
 import com.github.shyiko.mysql.binlog.event.TableMapEventData;
 import com.github.shyiko.mysql.binlog.io.ByteArrayInputStream;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.BitSet;
 import java.util.Calendar;
 import java.util.Map;
 import java.util.TimeZone;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Whole class is basically a mix of <a href="https://code.google.com/p/open-replicator">open-replicator</a>'s
@@ -98,7 +102,7 @@ public abstract class AbstractRowsEventDataDeserializer<T extends EventData> imp
     }
 
     protected Serializable[] deserializeRow(long tableId, BitSet includedColumns, ByteArrayInputStream inputStream)
-            throws IOException {
+        throws IOException {
         TableMapEventData tableMapEvent = tableMapEventByTableId.get(tableId);
         if (tableMapEvent == null) {
             throw new MissingTableMapEventException("No TableMapEventData has been found for table id:" + tableId +
@@ -135,6 +139,8 @@ public abstract class AbstractRowsEventDataDeserializer<T extends EventData> imp
                         length = meta;
                     }
                 }
+                System.out.println(ColumnType.byCode(typeCode));
+                System.out.println(ColumnType.byCode(length));
                 result[index] = deserializeCell(ColumnType.byCode(typeCode), meta, length, inputStream);
             }
         }
@@ -142,7 +148,7 @@ public abstract class AbstractRowsEventDataDeserializer<T extends EventData> imp
     }
 
     protected Serializable deserializeCell(ColumnType type, int meta, int length, ByteArrayInputStream inputStream)
-            throws IOException {
+        throws IOException {
         switch (type) {
             case BIT:
                 return deserializeBit(meta, inputStream);
@@ -367,6 +373,8 @@ public abstract class AbstractRowsEventDataDeserializer<T extends EventData> imp
         if (deserializeCharAndBinaryAsByteArray) {
             return inputStream.read(stringLength);
         }
+
+        System.out.println(stringLength);
         return inputStream.readString(stringLength);
     }
 
@@ -375,8 +383,39 @@ public abstract class AbstractRowsEventDataDeserializer<T extends EventData> imp
         if (deserializeCharAndBinaryAsByteArray) {
             return inputStream.read(varcharLength);
         }
-        return inputStream.readString(varcharLength);
+
+
+        String str=inputStream.readString(varcharLength);
+        if(str.indexOf('�')>-1){
+            InputStreamReader isr = new InputStreamReader(inputStream,"gbk");
+            int i;
+            StringBuilder sb = new StringBuilder();
+
+            while((i=isr.read()) != -1){
+                System.out.println((char)i);
+                sb.append((char)i);
+                //System.out.println((char)i);  //輸出  陳
+            }
+            return sb.toString();
+            /*
+            int i;
+            while((i=isr.read()) != -1){
+                System.out.println((char)i);  //輸出  陳
+            }
+            */
+        }
+
+
+        //String str=inputStream.readString(varcharLength);
+        //System.out.println(isMessyCode(inputStream.readString(varcharLength)));
+        //BufferedReader reader = new BufferedReader(isr);
+        //System.out.println("查询编码"+isr.toString());
+        //System.out.println(varcharLength);
+
+        return str;
     }
+
+
 
     protected Serializable deserializeBlob(int meta, ByteArrayInputStream inputStream) throws IOException {
         int blobLength = inputStream.readInteger(meta);
